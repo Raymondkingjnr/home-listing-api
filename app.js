@@ -7,6 +7,7 @@ import authRouter from "./routes/auth.route.js";
 import profileRouter from "./routes/profile.route.js";
 import cors from "cors";
 import errorMiddleware from "./middlewares/error.middleware.js";
+import propertyRouter from "./routes/property.route.js";
 
 const app = express();
 
@@ -45,6 +46,7 @@ app.get("/health", (req, res) => {
 
 app.use("/api/v1/auth", authRouter);
 app.use("/api/v1/profile", profileRouter);
+app.use("/api/v1/property", propertyRouter);
 app.use(errorMiddleware);
 
 const validateRequiredEnv = () => {
@@ -59,7 +61,9 @@ const validateRequiredEnv = () => {
     .map(([key]) => key);
 
   if (missingEnv.length > 0) {
-    throw new Error(`Missing required environment variables: ${missingEnv.join(", ")}`);
+    throw new Error(
+      `Missing required environment variables: ${missingEnv.join(", ")}`,
+    );
   }
 };
 

@@ -1,27 +1,26 @@
 # Home Listing API
 
-Backend API for user authentication and profile management for the Home Listing application.
+REST API for authentication, profile management, and property listing management for the Home Listing application.
 
-This project is built with:
+## Stack
 
 - Node.js
 - Express
-- MongoDB with Mongoose
+- MongoDB
+- Mongoose
 - JWT authentication
-- Nodemailer for email delivery
+- Nodemailer
+- `express-rate-limit`
 
 ## Features
 
-- User registration
-- User login
-- Forgot-password flow with email token
+- User registration and login
+- Forgot-password flow with email verification code
 - Authenticated password change
-- Fetch current user profile
-- Fetch profile by user ID
-- Update current user profile
-- List all profiles
-- Basic rate limiting
-- Health check endpoint for deployment platforms like Render
+- Profile fetch and profile update
+- Property creation, fetch, update, user-specific listing, and delete
+- Rate limiting
+- Health check endpoint
 
 ## Project Structure
 
@@ -47,22 +46,22 @@ home-listing-api/
 │   ├── auth.route.js
 │   ├── profile.route.js
 │   └── property.route.js
-└── utils/
-    ├── email-template.js
-    └── sendEmail.js
+├── utils/
+│   ├── email-template.js
+│   └── sendEmail.js
+├── package.json
+└── README.md
 ```
 
 ## Requirements
 
-Before running the project, make sure you have:
-
-- Node.js 18 or later
+- Node.js 18+
 - MongoDB connection string
-- A Gmail account or SMTP-compatible account for email sending
+- Email credentials for Nodemailer
 
 ## Environment Variables
 
-Create a `.env.local` file for local development.
+In development, the app loads variables from `.env.local`.
 
 ```env
 PORT=5000
@@ -75,26 +74,22 @@ EMAIL_PASSWORD=your_email_app_password
 FRONTEND_URL=https://your-frontend-url.com
 ```
 
-### Variable Notes
+### Notes
 
-- `PORT`: Port the server listens on.
-- `NODE_ENV`: Use `development` locally. Render usually sets this to `production`.
-- `DB_URL`: MongoDB connection string.
-- `JWT_SECRET`: Secret used to sign JWT tokens.
-- `JWT_EXPIRES_IN`: JWT expiry value, for example `7d`.
-- `EMAIL_USER`: Email address used to send welcome and reset emails.
-- `EMAIL_PASSWORD`: App password or SMTP password for the email account.
-- `FRONTEND_URL`: Frontend base URL used in email links.
+- `DB_URL` is required at startup.
+- `JWT_SECRET` and `JWT_EXPIRES_IN` are used for login and registration tokens.
+- `FRONTEND_URL` is used in welcome and reset-password emails.
+- `.env.local` is only loaded when `NODE_ENV=development`.
 
 ## Installation
 
-Install dependencies with either npm or pnpm.
+Using npm:
 
 ```bash
 npm install
 ```
 
-or
+Using pnpm:
 
 ```bash
 pnpm install
@@ -102,33 +97,54 @@ pnpm install
 
 ## Running Locally
 
-Start the development server:
+Development:
 
 ```bash
 npm run dev
 ```
 
-Start in normal mode:
+Production-style start:
 
 ```bash
 npm start
 ```
 
-If startup is successful, the API will be available at:
+Default local URL:
 
 ```text
 http://localhost:5000
 ```
 
-## Health Check
+## Authentication
 
-Use this endpoint to confirm the API is running:
+Protected routes use the `authorise` middleware.
 
-```http
-GET /health
+Send a token in either of these ways:
+
+- `Authorization: Bearer <token>`
+- `token` cookie
+
+The API currently returns the JWT in the JSON response body after register and login.
+
+## Base Route Prefixes
+
+- Auth: `/api/v1/auth`
+- Profile: `/api/v1/profile`
+- Property: `/api/v1/property`
+
+## Health And Root Endpoints
+
+### `GET /`
+
+Response:
+
+```text
+welcome to home listing API
 ```
 
-Example response:
+### `GET /health`
+
+Response:
 
 ```json
 {
@@ -137,50 +153,11 @@ Example response:
 }
 ```
 
-## Authentication
+## Auth Endpoints
 
-Protected routes use JWT authentication.
+### `POST /api/v1/auth/register`
 
-Send the token in the `Authorization` header like this:
-
-```http
-Authorization: Bearer <your_token>
-```
-
-The auth middleware also supports a token stored in cookies, but the current controllers return the token in JSON response bodies.
-
-## API Base URL
-
-Local base URL:
-
-```text
-http://localhost:5000
-```
-
-Route prefixes:
-
-- Auth routes: `/api/v1/auth`
-- Profile routes: `/api/v1/profile`
-
-## API Endpoints
-
-### Root
-
-#### `GET /`
-
-Returns a simple welcome message.
-
-Response:
-
-```text
-welcome to home listing API
-```
-
-### Auth Endpoints
-
-#### `POST /api/v1/auth/register`
-
-Registers a new user and creates a matching profile.
+Creates a user, creates a matching profile, and returns a JWT.
 
 Request body:
 
@@ -209,14 +186,9 @@ Success response:
 }
 ```
 
-Notes:
+### `PUT /api/v1/auth/login`
 
-- A `User` document and `Profile` document are created together.
-- A welcome email is attempted after registration.
-
-#### `PUT /api/v1/auth/login`
-
-Logs in an existing user.
+Logs in an existing user and returns a JWT.
 
 Request body:
 
@@ -227,26 +199,9 @@ Request body:
 }
 ```
 
-Success response:
+### `POST /api/v1/auth/forgot-password`
 
-```json
-{
-  "success": true,
-  "message": "User logged in successfully",
-  "data": {
-    "token": "jwt_token_here",
-    "user": {
-      "id": "user_id_here",
-      "fullname": "Raymond John",
-      "email": "raymond@example.com"
-    }
-  }
-}
-```
-
-#### `POST /api/v1/auth/forgot-password`
-
-Generates a reset token and sends it to the user by email.
+Creates a 4-character reset token, stores it on the user, and emails it.
 
 Request body:
 
@@ -256,23 +211,9 @@ Request body:
 }
 ```
 
-Success response:
+### `POST /api/v1/auth/createNewPassword`
 
-```json
-{
-  "success": true,
-  "message": "Verification code sent successfully"
-}
-```
-
-Notes:
-
-- The reset token currently expires after 1 hour.
-- The token is stored in the `User` document.
-
-#### `POST /api/v1/auth/createNewPassword`
-
-Creates a new password using the email and reset token.
+Resets a password using email plus verification token.
 
 Request body:
 
@@ -284,24 +225,9 @@ Request body:
 }
 ```
 
-Success response:
+### `PATCH /api/v1/auth/changePassword`
 
-```json
-{
-  "success": true,
-  "message": "Password changed successfully"
-}
-```
-
-#### `PATCH /api/v1/auth/changePassword`
-
-Changes the password for the currently authenticated user.
-
-Headers:
-
-```http
-Authorization: Bearer <your_token>
-```
+Protected route for changing the authenticated user's password.
 
 Request body:
 
@@ -312,56 +238,15 @@ Request body:
 }
 ```
 
-Success response:
+## Profile Endpoints
 
-```json
-{
-  "success": true,
-  "message": "Password changed successfully"
-}
-```
+### `GET /api/v1/profile/get-user`
 
-### Profile Endpoints
+Protected route that returns the authenticated user's profile.
 
-#### `GET /api/v1/profile/get-user`
+### `GET /api/v1/profile/user/:userId`
 
-Returns the currently authenticated user's profile.
-
-Headers:
-
-```http
-Authorization: Bearer <your_token>
-```
-
-Success response:
-
-```json
-{
-  "success": true,
-  "message": "Profile fetched successfully",
-  "data": {
-    "_id": "profile_id_here",
-    "userId": "user_id_here",
-    "fullname": "Raymond John",
-    "email": "raymond@example.com",
-    "gender": "prefer_not_to_say",
-    "tele": "",
-    "address": "",
-    "createdAt": "2026-04-29T00:00:00.000Z",
-    "updatedAt": "2026-04-29T00:00:00.000Z"
-  }
-}
-```
-
-#### `GET /api/v1/profile/user/:userId`
-
-Returns a profile by the owning user's ID.
-
-Headers:
-
-```http
-Authorization: Bearer <your_token>
-```
+Returns a profile by user ID.
 
 Example:
 
@@ -369,30 +254,19 @@ Example:
 GET /api/v1/profile/user/680ff0abc1234567890def12
 ```
 
-#### `GET /api/v1/profile/get-all-profiles`
+### `GET /api/v1/profile/get-all-profiles`
 
 Returns all profiles sorted by newest first.
 
-Success response:
+### `PATCH /api/v1/profile/update-user/:userId`
 
-```json
-{
-  "success": true,
-  "message": "Profiles fetched successfully",
-  "count": 2,
-  "data": []
-}
-```
+Protected route for updating the authenticated user's own profile.
 
-#### `PATCH /api/v1/profile/update-user`
+Important behavior:
 
-Updates the currently authenticated user's profile.
-
-Headers:
-
-```http
-Authorization: Bearer <your_token>
-```
+- the controller ignores the `:userId` route param for authorization
+- the actual user being updated comes from `req.user`
+- only the logged-in user can update their own profile
 
 Request body:
 
@@ -407,15 +281,7 @@ Request body:
 }
 ```
 
-Notes:
-
-- You can send only the fields you want to update.
-- `fullname` and `email` are kept in sync between the `User` and `Profile` collections.
-- The update is wrapped in a transaction to avoid partial writes.
-
-### Allowed Profile Fields
-
-The profile model supports these fields:
+Allowed profile fields:
 
 - `avatar`
 - `fullname`
@@ -430,6 +296,111 @@ Allowed `gender` values:
 - `female`
 - `other`
 - `prefer_not_to_say`
+
+## Property Endpoints
+
+### `GET /api/v1/property/get-all-properties`
+
+Returns all properties.
+
+This route is currently public.
+
+### `POST /api/v1/property/create-property/`
+
+Protected route for creating a property owned by the authenticated user.
+
+Request body:
+
+```json
+{
+  "title": "3 Bedroom Apartment",
+  "description": "Spacious apartment in Lekki",
+  "type": "rent",
+  "currency": "NGN",
+  "propertyType": "apartment",
+  "price": 2500000,
+  "location": "Lekki Phase 1",
+  "status": "available",
+  "images": [
+    "https://example.com/image-1.jpg",
+    "https://example.com/image-2.jpg"
+  ],
+  "city": "Lagos",
+  "state": "Lagos",
+  "bedrooms": 3,
+  "bathrooms": 3,
+  "amenities": ["wifi", "parking", "security"],
+  "floorPlan": "https://example.com/floor-plan.jpg"
+}
+```
+
+Required property fields from the schema:
+
+- `title`
+- `description`
+- `type`
+- `currency`
+- `propertyType`
+- `price`
+- `location`
+- `images`
+- `city`
+- `state`
+
+Allowed `type` values:
+
+- `rent`
+- `sale`
+
+Allowed `currency` values:
+
+- `USD`
+- `NGN`
+
+Allowed `status` values:
+
+- `available`
+- `sold`
+
+### `GET /api/v1/property/get-single-property/:propertyId`
+
+Protected route that returns a single property by MongoDB `_id`.
+
+### `PATCH /api/v1/property/update-property?propertyId=<property_id>`
+
+Protected route that updates a property owned by the authenticated user.
+
+Important behavior:
+
+- `propertyId` is read from the query string, not the route path
+- ownership is checked with `req.user._id`
+- a client-supplied `userId` is not required and should not be trusted for authorization
+
+Example:
+
+```http
+PATCH /api/v1/property/update-property?propertyId=69f65d7d9ab5ef5b01e545e8
+```
+
+Example request body:
+
+```json
+{
+  "price": 3000000,
+  "status": "available",
+  "description": "Updated description"
+}
+```
+
+### `GET /api/v1/property/get-user-properties/:userId`
+
+Returns all properties for a given user ID.
+
+This route is currently public.
+
+### `DELETE /api/v1/property/delete-property/:propertyId`
+
+Protected route that deletes a property only if it belongs to the authenticated user.
 
 ## Data Models
 
@@ -459,49 +430,49 @@ Fields:
 - `tele`
 - `address`
 
+### Property
+
+Stored in `models/properties.modal.js`.
+
+Fields:
+
+- `title`
+- `description`
+- `type`
+- `currency`
+- `propertyType`
+- `price`
+- `location`
+- `status`
+- `images`
+- `user`
+- `city`
+- `state`
+- `bedrooms`
+- `bathrooms`
+- `amenities`
+- `floorPlan`
+- `comments`
+
 ## Email Behavior
 
 The API sends:
 
-- Welcome emails after successful registration
-- Password reset emails during the forgot-password flow
+- welcome email after successful registration
+- password reset email during forgot-password flow
 
-Email sending is configured in `utils/sendEmail.js` using Nodemailer.
-
-For Gmail, use an app password instead of your normal account password.
+Email sending is handled through Nodemailer in `utils/sendEmail.js`.
 
 ## Rate Limiting
 
-The API uses `express-rate-limit` with the current configuration:
+Applied globally in `app.js`.
 
 - Window: 15 minutes
-- Limit: 100 requests per IP
+- Max requests: 100 per IP
 
-## Deployment Notes for Render
+## Error Format
 
-When deploying to Render:
-
-1. Set all required environment variables in the Render dashboard.
-2. Make sure your MongoDB deployment supports transactions.
-3. Use `npm start` as the start command.
-4. Use `/health` as the health check path if needed.
-
-Recommended Render environment variables:
-
-```env
-PORT=10000
-NODE_ENV=production
-DB_URL=your_mongodb_connection_string
-JWT_SECRET=your_jwt_secret
-JWT_EXPIRES_IN=7d
-EMAIL_USER=your_email@example.com
-EMAIL_PASSWORD=your_email_app_password
-FRONTEND_URL=https://your-frontend-url.com
-```
-
-## Error Responses
-
-Most endpoints return JSON in this format on failure:
+Most failures return JSON in this shape:
 
 ```json
 {
@@ -517,10 +488,11 @@ Common status codes:
 - `404` Not Found
 - `500` Internal Server Error
 
-## Known Notes
+## Current Notes
 
-- Property routes and controllers exist in the codebase, but they are not currently mounted in `app.js`.
-- There are no automated tests configured yet.
+- `update-user/:userId` in profile routes is misleading because the controller updates `req.user`, not the route param user.
+- `get-single-property/:propertyId` is protected, while `get-all-properties` and `get-user-properties/:userId` are public.
+- No automated tests are configured yet.
 
 ## Author
 
