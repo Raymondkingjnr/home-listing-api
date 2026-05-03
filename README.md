@@ -83,10 +83,10 @@ FRONTEND_URL=https://your-frontend-url.com
 
 ## Installation
 
-Using npm:
+Using pnpm:
 
 ```bash
-npm install
+pnpm install
 ```
 
 Using pnpm:
@@ -100,13 +100,13 @@ pnpm install
 Development:
 
 ```bash
-npm run dev
+pnpm run dev
 ```
 
 Production-style start:
 
 ```bash
-npm start
+pnpm start
 ```
 
 Default local URL:
