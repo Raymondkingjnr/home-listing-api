@@ -27,5 +27,3 @@ propertyRouter.delete(
 );
 
 export default propertyRouter;
-
-//eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2OWY3YmI5OGU4YzA1MzQyMWIxNzAzODciLCJpYXQiOjE3Nzc4NDMxMzYsImV4cCI6MTc3NzkyOTUzNn0.314hcEOglXIoJLizhu-_hZdbalmzbJ1vGLS5phWCI8I

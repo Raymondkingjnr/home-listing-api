@@ -1,6 +1,6 @@
 # Home Listing API
 
-REST API for authentication, profile management, and property listing management for the Home Listing application.
+A secure REST API for a real-estate platform that handles user authentication, profile management, and end-to-end property listing operations. It is built for home listing applications that need reliable account flows, protected user actions, email-based password recovery, and structured property data for rental and sale listings.
 
 ## Stack
 
@@ -14,13 +14,22 @@ REST API for authentication, profile management, and property listing management
 
 ## Features
 
-- User registration and login
-- Forgot-password flow with email verification code
-- Authenticated password change
-- Profile fetch and profile update
-- Property creation, fetch, update, user-specific listing, and delete
-- Rate limiting
-- Health check endpoint
+- JWT-based authentication for protected user actions
+- User registration with automatic profile creation
+- Secure login with token-based session handling
+- Forgot-password flow with email delivery and time-bound reset code
+- Authenticated password change for signed-in users
+- Profile retrieval for the current user and public profile lookup by user ID
+- Profile updates with email uniqueness checks and user/profile data sync
+- Property listing creation for authenticated users
+- Full property retrieval across all listings or by single property ID
+- User-specific property listing lookup
+- Property update and deletion restricted to listing owners
+- Structured property schema with support for pricing, status, location, images, amenities, bedrooms, bathrooms, and floor plan data
+- MongoDB transactions for critical multi-document operations
+- Global rate limiting to reduce abuse
+- CORS support for frontend integration
+- Health check and root endpoints for monitoring and uptime validation
 
 ## Project Structure
 
