@@ -71,12 +71,35 @@ const propertiesSchema = new mongoose.Schema(
     floorPlan: {
       type: String,
     },
-    comments: {
-      type: [mongoose.Schema.Types.ObjectId],
-    },
+    comments: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Comment",
+      },
+    ],
   },
   { timestamps: true },
 );
+
+propertiesSchema.index({
+  title: "text",
+  description: "text",
+  location: "text",
+  city: "text",
+  state: "text",
+  propertyType: "text",
+});
+
+propertiesSchema.index({
+    price: 1,
+    type: 1,
+    currency: 1,
+    state: 1,
+    city: 1,
+    status: 1,
+    propertyType: 1,
+    createdAt: -1,
+});
 
 const Property = mongoose.model("Property", propertiesSchema);
 export default Property;
