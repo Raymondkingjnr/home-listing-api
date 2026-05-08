@@ -3,13 +3,101 @@ import mongoose from "mongoose";
 
 export const getAllProperties = async (req, res) => {
   try {
-    const properties = await Property.find();
+    const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+    const limit = Math.max(parseInt(req.query.limit, 10) || 10, 1);
+    const skip = (page - 1) * limit;
+
+    const {
+      search = "",
+      type,
+      currency,
+      state,
+      city,
+      status,
+      propertyType,
+      minPrice,
+      maxPrice,
+      sortBy = "createdAt",
+      order = "desc",
+    } = req.query;
+
+    const filter = {};
+
+    if (type) filter.type = type;
+    if (currency) filter.currency = currency;
+    if (state) filter.state = state
+    if (city) filter.city = city.toLowerCase();
+    if (status) filter.status = status;
+    if (propertyType) filter.propertyType = propertyType;
+
+    const min = Number(minPrice);
+    const max = Number(maxPrice);
+    if (!Number.isNaN(min) || !Number.isNaN(max)) {
+      filter.price = {};
+      if (!Number.isNaN(min)) filter.price.$gte = min;
+      if (!Number.isNaN(max)) filter.price.$lte = max;
+    }
+
+    if (search.trim()) {
+      const searchRegex = new RegExp(search.trim(), "i");
+      filter.$or = [
+        { title: searchRegex },
+        { description: searchRegex },
+        { location: searchRegex },
+        { city: searchRegex },
+        { state: searchRegex },
+        { propertyType: searchRegex },
+      ];
+    }
+
+    const allowedSortFields = [
+      "price",
+      "type",
+      "currency",
+      "state",
+      "city",
+      "status",
+      "propertyType",
+      "createdAt",
+      "updatedAt",
+    ];
+
+    const resolvedSortField = allowedSortFields.includes(sortBy)
+      ? sortBy
+      : "createdAt";
+    const resolvedSortOrder = order === "asc" ? 1 : -1;
+    const sort = { [resolvedSortField]: resolvedSortOrder };
+
+    const [properties, total] = await Promise.all([
+      Property.find(filter).sort(sort).skip(skip).limit(limit),
+      Property.countDocuments(filter),
+    ]);
 
     res.status(200).json({
       success: true,
       message: "Properties fetched successfully",
-      count: properties.length,
+      filters: {
+        search,
+        type,
+        currency,
+        state,
+        city,
+        status,
+        propertyType,
+        minPrice,
+        maxPrice,
+      },
+      sort: {
+        by: resolvedSortField,
+        order: resolvedSortOrder === 1 ? "asc" : "desc",
+      },
       data: properties,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      }
     });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -63,8 +151,14 @@ export const getPropertyById = async (req, res) => {
         .status(400)
         .json({ success: false, message: "Invalid property ID" });
     }
-    const property = await Property.findById(propertyId);
-
+    const property = await Property.findById(propertyId).populate({
+      path: "comments",
+      select: "content owner",
+      populate: {
+        path: "owner",
+        select: "fullname",
+      },
+    });
     if (!property) {
       return res.status(404).json({
         success: false,
@@ -148,7 +242,7 @@ export const updateProperty = async (req, res) => {
     await session.abortTransaction();
     res
       .status(500)
-      .json({ success: false, message: `an error occured ${error.message}` });
+      .json({ success: false, message: `an error occurred ${error.message}` });
   }
 };
 

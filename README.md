@@ -1,6 +1,6 @@
 # Home Listing API
 
-A secure REST API for a real-estate platform that handles user authentication, profile management, and end-to-end property listing operations. It is built for home listing applications that need reliable account flows, protected user actions, email-based password recovery, and structured property data for rental and sale listings.
+A REST API for a real-estate/home-listing platform. The API supports user authentication, profile management, property listings, comments, pagination, filtering, sorting, password recovery, and protected owner-only actions.
 
 ## Stack
 
@@ -11,25 +11,27 @@ A secure REST API for a real-estate platform that handles user authentication, p
 - JWT authentication
 - Nodemailer
 - `express-rate-limit`
+- `cookie-parser`
+- `cors`
 
 ## Features
 
-- JWT-based authentication for protected user actions
-- User registration with automatic profile creation
-- Secure login with token-based session handling
-- Forgot-password flow with email delivery and time-bound reset code
-- Authenticated password change for signed-in users
-- Profile retrieval for the current user and public profile lookup by user ID
-- Profile updates with email uniqueness checks and user/profile data sync
-- Property listing creation for authenticated users
-- Full property retrieval across all listings or by single property ID
-- User-specific property listing lookup
-- Property update and deletion restricted to listing owners
-- Structured property schema with support for pricing, status, location, images, amenities, bedrooms, bathrooms, and floor plan data
-- MongoDB transactions for critical multi-document operations
-- Global rate limiting to reduce abuse
-- CORS support for frontend integration
-- Health check and root endpoints for monitoring and uptime validation
+- User registration and login with JWTs
+- Automatic profile creation during registration
+- Password reset by email
+- Authenticated password change
+- Current-user profile lookup
+- Public profile lookup by user ID
+- Profile updates with protected access
+- Property creation, retrieval, update, and deletion
+- Owner-only update and delete actions for properties
+- Paginated property listing results
+- Property filtering by search, type, currency, state, city, status, property type, and price range
+- Property sorting by supported fields
+- Comment creation, retrieval, and deletion
+- Global API rate limiting
+- CORS support for frontend clients
+- Health check and API route index endpoints
 
 ## Project Structure
 
@@ -40,6 +42,7 @@ home-listing-api/
 │   └── env.js
 ├── controllers/
 │   ├── auth.controllers.js
+│   ├── comments.controllers.js
 │   ├── profile.controllers.js
 │   └── property.controllers.js
 ├── database/
@@ -48,17 +51,20 @@ home-listing-api/
 │   ├── auth.middleware.js
 │   └── error.middleware.js
 ├── models/
+│   ├── comment.modals.js
 │   ├── profile.modals.js
 │   ├── properties.modal.js
 │   └── user.modal.js
 ├── routes/
 │   ├── auth.route.js
+│   ├── comment.route.js
 │   ├── profile.route.js
 │   └── property.route.js
 ├── utils/
 │   ├── email-template.js
 │   └── sendEmail.js
 ├── package.json
+├── pnpm-lock.yaml
 └── README.md
 ```
 
@@ -70,7 +76,7 @@ home-listing-api/
 
 ## Environment Variables
 
-In development, the app loads variables from `.env.local`.
+In development, variables are loaded from `.env.local`.
 
 ```env
 PORT=5000
@@ -83,20 +89,13 @@ EMAIL_PASSWORD=your_email_app_password
 FRONTEND_URL=https://your-frontend-url.com
 ```
 
-### Notes
+Required at startup:
 
-- `DB_URL` is required at startup.
-- `JWT_SECRET` and `JWT_EXPIRES_IN` are used for login and registration tokens.
-- `FRONTEND_URL` is used in welcome and reset-password emails.
-- `.env.local` is only loaded when `NODE_ENV=development`.
+- `DB_URL`
+- `JWT_SECRET`
+- `PORT`
 
 ## Installation
-
-Using npm:
-
-```bash
-npm install
-```
 
 Using pnpm:
 
@@ -104,18 +103,24 @@ Using pnpm:
 pnpm install
 ```
 
+Using npm:
+
+```bash
+npm install
+```
+
 ## Running Locally
 
 Development:
 
 ```bash
-npm run dev
+pnpm dev
 ```
 
 Production-style start:
 
 ```bash
-npm start
+pnpm start
 ```
 
 Default local URL:
@@ -128,32 +133,27 @@ http://localhost:5000
 
 Protected routes use the `authorise` middleware.
 
-Send a token in either of these ways:
+Send the JWT in one of these ways:
 
 - `Authorization: Bearer <token>`
 - `token` cookie
 
-The API currently returns the JWT in the JSON response body after register and login.
+Register and login responses include a JWT in the JSON response body.
 
-## Base Route Prefixes
+## Base Routes
 
 - Auth: `/api/v1/auth`
 - Profile: `/api/v1/profile`
 - Property: `/api/v1/property`
+- Comment: `/api/v1/comment`
 
-## Health And Root Endpoints
+## Root And Health
 
 ### `GET /`
 
-Response:
-
-```text
-welcome to home listing API
-```
+Returns a route index with available API endpoints.
 
 ### `GET /health`
-
-Response:
 
 ```json
 {
@@ -168,8 +168,6 @@ Response:
 
 Creates a user, creates a matching profile, and returns a JWT.
 
-Request body:
-
 ```json
 {
   "fullname": "Raymond John",
@@ -178,28 +176,9 @@ Request body:
 }
 ```
 
-Success response:
-
-```json
-{
-  "success": true,
-  "message": "User registered successfully",
-  "data": {
-    "token": "jwt_token_here",
-    "user": {
-      "id": "user_id_here",
-      "fullname": "Raymond John",
-      "email": "raymond@example.com"
-    }
-  }
-}
-```
-
 ### `PUT /api/v1/auth/login`
 
 Logs in an existing user and returns a JWT.
-
-Request body:
 
 ```json
 {
@@ -210,9 +189,7 @@ Request body:
 
 ### `POST /api/v1/auth/forgot-password`
 
-Creates a 4-character reset token, stores it on the user, and emails it.
-
-Request body:
+Creates a password reset token and sends it to the user's email.
 
 ```json
 {
@@ -222,9 +199,7 @@ Request body:
 
 ### `POST /api/v1/auth/createNewPassword`
 
-Resets a password using email plus verification token.
-
-Request body:
+Resets a password with an email and reset token.
 
 ```json
 {
@@ -237,8 +212,6 @@ Request body:
 ### `PATCH /api/v1/auth/changePassword`
 
 Protected route for changing the authenticated user's password.
-
-Request body:
 
 ```json
 {
@@ -257,27 +230,17 @@ Protected route that returns the authenticated user's profile.
 
 Returns a profile by user ID.
 
-Example:
-
 ```http
 GET /api/v1/profile/user/680ff0abc1234567890def12
 ```
 
 ### `GET /api/v1/profile/get-all-profiles`
 
-Returns all profiles sorted by newest first.
+Returns all profiles.
 
 ### `PATCH /api/v1/profile/update-user/:userId`
 
-Protected route for updating the authenticated user's own profile.
-
-Important behavior:
-
-- the controller ignores the `:userId` route param for authorization
-- the actual user being updated comes from `req.user`
-- only the logged-in user can update their own profile
-
-Request body:
+Protected route for updating a profile.
 
 ```json
 {
@@ -310,15 +273,78 @@ Allowed `gender` values:
 
 ### `GET /api/v1/property/get-all-properties`
 
-Returns all properties.
+Returns properties with pagination, filtering, and sorting.
 
-This route is currently public.
+Example:
+
+```http
+GET /api/v1/property/get-all-properties?page=1&limit=10&type=rent&city=lagos&minPrice=100000&maxPrice=5000000&sortBy=price&order=asc
+```
+
+Supported query parameters:
+
+| Parameter | Description | Default |
+| --- | --- | --- |
+| `page` | Page number. Minimum value is `1`. | `1` |
+| `limit` | Number of properties per page. Minimum value is `1`. | `10` |
+| `search` | Case-insensitive search across title, description, location, city, state, and property type. | empty |
+| `type` | Filter by listing type: `rent` or `sale`. | none |
+| `currency` | Filter by currency: `USD` or `NGN`. | none |
+| `state` | Filter by state. | none |
+| `city` | Filter by city. | none |
+| `status` | Filter by status: `available` or `sold`. | none |
+| `propertyType` | Filter by property type. | none |
+| `minPrice` | Minimum property price. | none |
+| `maxPrice` | Maximum property price. | none |
+| `sortBy` | Sort field. | `createdAt` |
+| `order` | Sort direction: `asc` or `desc`. | `desc` |
+
+Supported `sortBy` values:
+
+- `price`
+- `type`
+- `currency`
+- `state`
+- `city`
+- `status`
+- `propertyType`
+- `createdAt`
+- `updatedAt`
+
+Response shape:
+
+```json
+{
+  "success": true,
+  "message": "Properties fetched successfully",
+  "filters": {
+    "search": "",
+    "type": "rent",
+    "currency": "NGN",
+    "state": "Lagos",
+    "city": "lagos",
+    "status": "available",
+    "propertyType": "apartment",
+    "minPrice": "100000",
+    "maxPrice": "5000000"
+  },
+  "sort": {
+    "by": "price",
+    "order": "asc"
+  },
+  "data": [],
+  "pagination": {
+    "page": 1,
+    "limit": 10,
+    "total": 0,
+    "totalPages": 0
+  }
+}
+```
 
 ### `POST /api/v1/property/create-property/`
 
 Protected route for creating a property owned by the authenticated user.
-
-Request body:
 
 ```json
 {
@@ -343,7 +369,7 @@ Request body:
 }
 ```
 
-Required property fields from the schema:
+Required property fields:
 
 - `title`
 - `description`
@@ -373,25 +399,19 @@ Allowed `status` values:
 
 ### `GET /api/v1/property/get-single-property/:propertyId`
 
-Protected route that returns a single property by MongoDB `_id`.
+Returns a single property by MongoDB `_id`. The response includes populated comment owner names when comments exist.
+
+```http
+GET /api/v1/property/get-single-property/69f65d7d9ab5ef5b01e545e8
+```
 
 ### `PATCH /api/v1/property/update-property?propertyId=<property_id>`
 
 Protected route that updates a property owned by the authenticated user.
 
-Important behavior:
-
-- `propertyId` is read from the query string, not the route path
-- ownership is checked with `req.user._id`
-- a client-supplied `userId` is not required and should not be trusted for authorization
-
-Example:
-
 ```http
 PATCH /api/v1/property/update-property?propertyId=69f65d7d9ab5ef5b01e545e8
 ```
-
-Example request body:
 
 ```json
 {
@@ -403,21 +423,57 @@ Example request body:
 
 ### `GET /api/v1/property/get-user-properties/:userId`
 
-Returns all properties for a given user ID.
+Protected route that returns all properties for a given user ID.
 
-This route is currently public.
+```http
+GET /api/v1/property/get-user-properties/680ff0abc1234567890def12
+```
 
 ### `DELETE /api/v1/property/delete-property/:propertyId`
 
 Protected route that deletes a property only if it belongs to the authenticated user.
+
+```http
+DELETE /api/v1/property/delete-property/69f65d7d9ab5ef5b01e545e8
+```
+
+## Comment Endpoints
+
+### `POST /api/v1/comment/post-comment/:propertyId`
+
+Protected route for adding a comment to a property.
+
+```http
+POST /api/v1/comment/post-comment/69f65d7d9ab5ef5b01e545e8
+```
+
+```json
+{
+  "content": "Is this property still available?"
+}
+```
+
+### `GET /api/v1/comment/get-property-comments/:propertyId`
+
+Returns comments for a property with the comment owner's `fullname` populated.
+
+```http
+GET /api/v1/comment/get-property-comments/69f65d7d9ab5ef5b01e545e8
+```
+
+### `DELETE /api/v1/comment/delete-comment/:commentId`
+
+Protected route that deletes a comment only if it belongs to the authenticated user. The deleted comment is also removed from the related property's `comments` array.
+
+```http
+DELETE /api/v1/comment/delete-comment/680ff0abc1234567890def12
+```
 
 ## Data Models
 
 ### User
 
 Stored in `models/user.modal.js`.
-
-Fields:
 
 - `fullname`
 - `email`
@@ -428,8 +484,6 @@ Fields:
 ### Profile
 
 Stored in `models/profile.modals.js`.
-
-Fields:
 
 - `userId`
 - `avatar`
@@ -442,8 +496,6 @@ Fields:
 ### Property
 
 Stored in `models/properties.modal.js`.
-
-Fields:
 
 - `title`
 - `description`
@@ -463,18 +515,17 @@ Fields:
 - `floorPlan`
 - `comments`
 
-## Email Behavior
+### Comment
 
-The API sends:
+Stored in `models/comment.modals.js`.
 
-- welcome email after successful registration
-- password reset email during forgot-password flow
-
-Email sending is handled through Nodemailer in `utils/sendEmail.js`.
+- `content`
+- `owner`
+- `property`
 
 ## Rate Limiting
 
-Applied globally in `app.js`.
+Rate limiting is applied globally in `app.js`.
 
 - Window: 15 minutes
 - Max requests: 100 per IP
@@ -497,10 +548,11 @@ Common status codes:
 - `404` Not Found
 - `500` Internal Server Error
 
-## Current Notes
+## Notes
 
-- `update-user/:userId` in profile routes is misleading because the controller updates `req.user`, not the route param user.
-- `get-single-property/:propertyId` is protected, while `get-all-properties` and `get-user-properties/:userId` are public.
+- `GET /api/v1/property/get-all-properties` is public.
+- `GET /api/v1/property/get-user-properties/:userId` is protected by the route middleware.
+- `PATCH /api/v1/property/update-property` reads `propertyId` from the query string.
 - No automated tests are configured yet.
 
 ## Author
