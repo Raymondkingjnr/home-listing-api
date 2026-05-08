@@ -114,7 +114,7 @@ npm install
 Development:
 
 ```bash
-pnpm dev
+pnpm run dev
 ```
 
 Production-style start:
